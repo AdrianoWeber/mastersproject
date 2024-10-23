@@ -48,15 +48,16 @@ download_vcf(){
     if [[ "$chrom" == 'Y' ]]; then
       vcf_file="ALL.chr${chrom}.phase3_integrated_v2b.20130502.genotypes.vcf.gz"
     fi
-    if [[ "$chrom" == "MT" ]]; then
-      vcf_file="ALL.chr${chrom}.phase3_callmom-v0_4.20130502.genotypes.vcf.gz"
+    if [[ "$chrom" == "M" ]]; then
+      vcf_file="ALL.chr${chrom}T.phase3_callmom-v0_4.20130502.genotypes.vcf.gz"
     fi
 
     vcf_url="${base_url}/${vcf_file}"
     tbi_url="${vcf_url}.tbi"
     echo "Downloading VCF and index for chromosome ${chrom}..."
-    wget -P "$VCF_DIR" "$vcf_url"
-    wget -P "$VCF_DIR" "$tbi_url"
+    echo "DIRECTION DE SORTIE: $VCF_DIR"
+    wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" "$vcf_url" #Préciser VCF_DIR dans -O
+    wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi" "$tbi_url"
 }
 
 #Function to merge vcf files
@@ -64,13 +65,14 @@ merge_vcf(){
     vcf_list=("$@")
     merged_output="$OUTPUT_DIR/1000genomes_data_merged.vcf.gz"
     echo "Merging files..."
+    echo "${vcf_list[@]}"
     bcftools view "${vcf_list[@]}" | bgzip -c > "$merged_output"
     echo "Merged VCF file created at $merged_output"
 }
 
 if [ "$#" -eq 0 ]; then
   echo "No parameter provided. Downloading all VCF from 1000 genomes...."
-  chromosomes=( {1..22} X Y MT )
+  chromosomes=( {1..22} X Y M ) #J'ai remplacé MT par M
    for chrom in "${chromosomes[@]}"
    do
         download_vcf "$chrom"
@@ -98,13 +100,16 @@ while getopts ":ho:l:p:" opt; do
         loci_file="${OPTARG}"
         ;;
       p)
-        sample_list="" #Ligne également ajoutée par chatGPT
+        sample_list=""
+        separator=""
         pop_names="${OPTARG}"
         pop_list=$(echo "$pop_names" | tr ',' ' ')
         wget -O "panel.txt" "$panel_url"
-        echo "Populations selected: ${continent_populations[$pop_list]}"
-        sample_list=$(grep -E "$(echo "${continent_populations[$pop_list]}" | tr ',' '|')" "panel.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
-        echo "Sample list: $sample_list" 
+        for continent in $pop_list; do
+          sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "panel.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
+          separator=","
+        done
+        echo "SAMPLE LIST: $sample_list"
         ;;
       #if another flag is used, error
       *)
@@ -140,11 +145,11 @@ while read -r line; do
     echo "Processing chromosome: $chrom"
     echo "Positions: $positions"  
 # Filtrer les fichiers VCF pour ne garder que les positions d'intérêt
-    bcftools view --regions "${chrom}:${positions}" "$VCF_DIR/ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz" \ | bgzip -c > "$VCF_DIR/ALL.chr${chrom}.filtered.vcf.gz"
-    echo "FILTERING..."
+    bcftools view --regions "${chrom}:${positions}" "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" \ | bgzip -c > "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
+    echo "FILTERING POSITIONS..."
 done < "$loci_file"
 echo "Filtering completed! Filtered VCFs saved in $VCF_DIR"
-files_to_merge+=("$VCF_DIR/ALL.chr${chrom}.filtered.vcf.gz")
+files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
 
 ###Merging all data in 1 vcf
 printf "Files to merge: %s\n" "${files_to_merge[@]}" 
@@ -157,8 +162,10 @@ fi
 
 ###Populations selection
 if [ "$pop_names" != "0" ]; then
-    echo "Filtering..."
+    echo "FILTERING POPULATIONS..."
     tabix "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" 
+    echo "SAMPLE LIST: $sample_list"
     bcftools view -s "$sample_list" "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" | bgzip -c > "$OUTPUT_DIR/1000genomes_data_merged_pop_filtered.vcf.gz"
     #Rajouter ici une mention de succès
+    echo "Success! Program ended without problems."
 fi
