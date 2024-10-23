@@ -36,12 +36,22 @@ continent_populations["SAS"]="PJL,BEB" #GIH, ITU, STU
 
 #Probablement ajouter un "files_to_delete" in fine
 
-
-
 ###Function to download vcf files
 download_vcf(){
     chrom=$1
-    vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+    if [[ "$chrom" =~ ^[0-9]+$ ]]; then
+      vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+    fi
+    if [[ "$chrom" == 'X' ]]; then
+      vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz"
+    fi
+    if [[ "$chrom" == 'Y' ]]; then
+      vcf_file="ALL.chr${chrom}.phase3_integrated_v2b.20130502.genotypes.vcf.gz"
+    fi
+    if [[ "$chrom" == "MT" ]]; then
+      vcf_file="ALL.chr${chrom}.phase3_callmom-v0_4.20130502.genotypes.vcf.gz"
+    fi
+
     vcf_url="${base_url}/${vcf_file}"
     tbi_url="${vcf_url}.tbi"
     echo "Downloading VCF and index for chromosome ${chrom}..."
