@@ -21,11 +21,13 @@ OUTPUT_DIR=.
 VCF_DIR="./1000genomes_vcf_files"
 mkdir -p "$VCF_DIR"
 base_url="ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502"
-panel_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
+#panel_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
+ped_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20200731.ALL.ped"
 
 loci_file="0"
 pop_names="0"
-files_to_merge=()
+declare -a files_to_merge=()
+# files_to_merge=()
 #Population commented are excluded because they do not live in the continent to which they are assigned.
 declare -A continent_populations
 continent_populations["AFR"]="YRI,LWK,GWD,MSL,ESN" #ACB, ASW
@@ -56,12 +58,13 @@ download_vcf(){
     tbi_url="${vcf_url}.tbi"
     echo "Downloading VCF and index for chromosome ${chrom}..."
     echo "DIRECTION DE SORTIE: $VCF_DIR"
-    wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" "$vcf_url" #Préciser VCF_DIR dans -O
+    wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" "$vcf_url"
     wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi" "$tbi_url"
 }
 
 #Function to merge vcf files
 merge_vcf(){
+    declare -a vcf_list=()
     vcf_list=("$@")
     merged_output="$OUTPUT_DIR/1000genomes_data_merged.vcf.gz"
     echo "Merging files..."
@@ -70,9 +73,10 @@ merge_vcf(){
     echo "Merged VCF file created at $merged_output"
 }
 
+
 if [ "$#" -eq 0 ]; then
   echo "No parameter provided. Downloading all VCF from 1000 genomes...."
-  chromosomes=( {1..22} X Y M ) #J'ai remplacé MT par M
+  chromosomes=( {1..22} X Y M )
    for chrom in "${chromosomes[@]}"
    do
         download_vcf "$chrom"
@@ -104,23 +108,27 @@ while getopts ":ho:l:p:" opt; do
         separator=""
         pop_names="${OPTARG}"
         pop_list=$(echo "$pop_names" | tr ',' ' ')
-        wget -O "panel.txt" "$panel_url"
+        #wget -O "panel.txt" "$panel_url"
+        wget -O "ped.txt" "$ped_url"
+        awk -F"\t" '($8 == "unrel" || $8 == "father" || $8 == "mother") && $9 == "0" && $10 == "0" && $11 == "0" {print $1 "\t" $7}' "ped.txt" > "unrelated.txt"
         for continent in $pop_list; do
-          sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "panel.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
+          #sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "panel.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
+          sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "unrelated.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
           separator=","
         done
-        echo "SAMPLE LIST: $sample_list"
+        echo "DEBUG SAMPLE LIST: $sample_list"
         ;;
       #if another flag is used, error
       *)
         usage
+        exit
         ;;
     esac
 done
 
 if [  "$loci_file" == "0" ]; then
   echo "No loci parameter provided. Downloading all VCF from 1000 genomes...."
-  chromosomes=( {1..22} X Y MT )
+  chromosomes=( {1..22} X Y M )
    for chrom in "${chromosomes[@]}"
    do
         download_vcf "$chrom"
@@ -143,19 +151,20 @@ while read -r line; do
     chrom=$(echo "$line" | awk -F '[:]' '{print $1}')
     positions=$(echo "$line" | awk -F '[:]' '{print $2}')
     echo "Processing chromosome: $chrom"
-    echo "Positions: $positions"  
-# Filtrer les fichiers VCF pour ne garder que les positions d'intérêt
+    echo "Filtering positions: $positions"  
     bcftools view --regions "${chrom}:${positions}" "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" \ | bgzip -c > "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
-    echo "FILTERING POSITIONS..."
+    tabix "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
+    files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
 done < "$loci_file"
 echo "Filtering completed! Filtered VCFs saved in $VCF_DIR"
-files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
+# files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
 
 ###Merging all data in 1 vcf
-printf "Files to merge: %s\n" "${files_to_merge[@]}" 
+echo "Files to merge: ${files_to_merge[*]}"
+
 echo "Writing a unique vcf..."
 if  merge_vcf "${files_to_merge[@]}" ; then
-    echo "Success!"
+    echo "Success! Merging completed."
     else
         echo "ERROR during merging."
 fi
@@ -164,8 +173,7 @@ fi
 if [ "$pop_names" != "0" ]; then
     echo "FILTERING POPULATIONS..."
     tabix "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" 
-    echo "SAMPLE LIST: $sample_list"
     bcftools view -s "$sample_list" "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" | bgzip -c > "$OUTPUT_DIR/1000genomes_data_merged_pop_filtered.vcf.gz"
     #Rajouter ici une mention de succès
-    echo "Success! Program ended without problems."
+    echo "Success! Program ended without major problems."
 fi
