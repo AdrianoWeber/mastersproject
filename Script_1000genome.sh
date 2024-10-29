@@ -56,10 +56,12 @@ download_vcf(){
 
     vcf_url="${base_url}/${vcf_file}"
     tbi_url="${vcf_url}.tbi"
-    echo "Downloading VCF and index for chromosome ${chrom}..."
-    echo "DIRECTION DE SORTIE: $VCF_DIR"
-    wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" "$vcf_url"
-    wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi" "$tbi_url"
+    if [ ! -e "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" ]; then #To avoid downloading multiple time
+      echo "Downloading VCF and index for chromosome ${chrom}..."
+      echo "DIRECTION DE SORTIE: $VCF_DIR"
+      wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" "$vcf_url"
+      wget -O "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi" "$tbi_url"
+    fi
 }
 
 #Function to merge vcf files
@@ -69,20 +71,20 @@ merge_vcf(){
     merged_output="$OUTPUT_DIR/1000genomes_data_merged.vcf.gz"
     echo "Merging files..."
     echo "${vcf_list[@]}"
-    bcftools view "${vcf_list[@]}" | bgzip -c > "$merged_output"
+    bcftools  concat -Da -o "$merged_output" "${vcf_list[@]}" #Usage de concat plutôt que view pour corriger les problèmes "-D" est censé supprimer les doubles.
     echo "Merged VCF file created at $merged_output"
 }
 
 
 if [ "$#" -eq 0 ]; then
   echo "No parameter provided. Downloading all VCF from 1000 genomes...."
-  chromosomes=( {1..22} X Y M )
+  chromosomes=( {1..22} X Y M) 
    for chrom in "${chromosomes[@]}"
    do
         download_vcf "$chrom"
     done
   echo "DOWNLOADING COMPLETED!"
-  exit 1
+  exit 1 # Maybe erasing this line to keep the code functioning.
 fi
 
 ###OPTIONS setting
@@ -108,11 +110,10 @@ while getopts ":ho:l:p:" opt; do
         separator=""
         pop_names="${OPTARG}"
         pop_list=$(echo "$pop_names" | tr ',' ' ')
-        #wget -O "panel.txt" "$panel_url"
         wget -O "ped.txt" "$ped_url"
-        awk -F"\t" '($8 == "unrel" || $8 == "father" || $8 == "mother") && $9 == "0" && $10 == "0" && $11 == "0" {print $1 "\t" $7}' "ped.txt" > "unrelated.txt"
+        echo "Writing a file without parental relations..."
+        awk -F"\t" '($8 == "unrel" || $8 == "father" || $8 == "mother") && $9 == "0" && $10 == "0" && $11 == "0" {print $2 "\t" $7}' "ped.txt" > "unrelated.txt"
         for continent in $pop_list; do
-          #sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "panel.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
           sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "unrelated.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
           separator=","
         done
@@ -173,7 +174,10 @@ fi
 if [ "$pop_names" != "0" ]; then
     echo "FILTERING POPULATIONS..."
     tabix "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" 
-    bcftools view -s "$sample_list" "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" | bgzip -c > "$OUTPUT_DIR/1000genomes_data_merged_pop_filtered.vcf.gz"
-    #Rajouter ici une mention de succès
-    echo "Success! Program ended without major problems."
+    echo "$sample_list" > "$OUTPUT_DIR/sample_list.txt"
+    if bcftools view --force-samples -s "$sample_list" "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" | bgzip -c > "$OUTPUT_DIR/1000genomes_data_merged_pop_filtered.vcf.gz"; then
+      echo "Success! Program ended without major problems."
+      else 
+        echo "ERROR during population selection."
+    fi
 fi
