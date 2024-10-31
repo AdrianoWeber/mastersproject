@@ -21,6 +21,7 @@ OUTPUT_DIR=.
 VCF_DIR="./1000genomes_vcf_files"
 mkdir -p "$VCF_DIR"
 #base_url="ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502"
+#TEST DE COMMIT
 base_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/20190425_NYGC_GATK"
 #panel_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
 ped_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20200731.ALL.ped"
