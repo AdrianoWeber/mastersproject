@@ -174,7 +174,6 @@ fi
 if [ "$pop_names" != "0" ]; then
     echo "FILTERING POPULATIONS..."
     tabix "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" 
-    echo "$sample_list" > "$OUTPUT_DIR/sample_list.txt"
     if bcftools view --force-samples -s "$sample_list" "$OUTPUT_DIR/1000genomes_data_merged.vcf.gz" | bgzip -c > "$OUTPUT_DIR/1000genomes_data_merged_pop_filtered.vcf.gz"; then
       echo "Success! Program ended without major problems."
       else 
