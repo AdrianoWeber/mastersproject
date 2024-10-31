@@ -20,7 +20,8 @@ usage(){
 OUTPUT_DIR=.
 VCF_DIR="./1000genomes_vcf_files"
 mkdir -p "$VCF_DIR"
-base_url="ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502"
+#base_url="ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502"
+base_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/20190425_NYGC_GATK"
 #panel_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
 ped_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20200731.ALL.ped"
 
@@ -42,16 +43,20 @@ continent_populations["SAS"]="PJL,BEB" #GIH, ITU, STU
 download_vcf(){
     chrom=$1
     if [[ "$chrom" =~ ^[0-9]+$ ]]; then
-      vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+      #vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+      vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == 'X' ]]; then
-      vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz"
+      #vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz"
+      vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == 'Y' ]]; then
-      vcf_file="ALL.chr${chrom}.phase3_integrated_v2b.20130502.genotypes.vcf.gz"
+      #vcf_file="ALL.chr${chrom}.phase3_integrated_v2b.20130502.genotypes.vcf.gz"
+      vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == "M" ]]; then
-      vcf_file="ALL.chr${chrom}T.phase3_callmom-v0_4.20130502.genotypes.vcf.gz"
+      echo "NO MT Data"
+      #vcf_file="ALL.chr${chrom}T.phase3_callmom-v0_4.20130502.genotypes.vcf.gz"
     fi
 
     vcf_url="${base_url}/${vcf_file}"
@@ -129,7 +134,7 @@ done
 
 if [  "$loci_file" == "0" ]; then
   echo "No loci parameter provided. Downloading all VCF from 1000 genomes...."
-  chromosomes=( {1..22} X Y M )
+  chromosomes=( {1..22} X Y ) # M
    for chrom in "${chromosomes[@]}"
    do
         download_vcf "$chrom"
