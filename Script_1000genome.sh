@@ -24,7 +24,7 @@ mkdir -p "$VCF_DIR"
 #TEST DE COMMIT
 base_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/20190425_NYGC_GATK"
 #panel_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
-ped_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20200731.ALL.ped"
+index_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/1000G_2504_high_coverage.sequence.index"
 
 loci_file="0"
 pop_names="0"
@@ -44,15 +44,12 @@ continent_populations["SAS"]="PJL,BEB" #GIH, ITU, STU
 download_vcf(){
     chrom=$1
     if [[ "$chrom" =~ ^[0-9]+$ ]]; then
-      #vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
       vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == 'X' ]]; then
-      #vcf_file="ALL.chr${chrom}.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz"
       vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == 'Y' ]]; then
-      #vcf_file="ALL.chr${chrom}.phase3_integrated_v2b.20130502.genotypes.vcf.gz"
       vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == "M" ]]; then
@@ -81,18 +78,6 @@ merge_vcf(){
     echo "Merged VCF file created at $merged_output"
 }
 
-
-if [ "$#" -eq 0 ]; then
-  echo "No parameter provided. Downloading all VCF from 1000 genomes...."
-  chromosomes=( {1..22} X Y M) 
-   for chrom in "${chromosomes[@]}"
-   do
-        download_vcf "$chrom"
-    done
-  echo "DOWNLOADING COMPLETED!"
-  exit 1 # Maybe erasing this line to keep the code functioning.
-fi
-
 ###OPTIONS setting
 while getopts ":ho:l:p:" opt; do 
     case "${opt}" in
@@ -116,11 +101,11 @@ while getopts ":ho:l:p:" opt; do
         separator=""
         pop_names="${OPTARG}"
         pop_list=$(echo "$pop_names" | tr ',' ' ')
-        wget -O "ped.txt" "$ped_url"
+        wget -O "index.txt" "$index_url"
         echo "Writing a file without parental relations..."
-        awk -F"\t" '($8 == "unrel" || $8 == "father" || $8 == "mother") && $9 == "0" && $10 == "0" && $11 == "0" {print $2 "\t" $7}' "ped.txt" > "unrelated.txt"
+        awk -F"\t" '!/^##/ {print $10 "\t" $11}' "index.txt" > samples.txt
         for continent in $pop_list; do
-          sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "unrelated.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
+          sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "samples.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
           separator=","
         done
         echo "DEBUG SAMPLE LIST: $sample_list"
@@ -149,20 +134,25 @@ vcf_needed=$(awk -F '[:]' '{print $1}' "$loci_file" | sort -u)
 echo "Downloading VCF needed for all loci provided..."
 for chrom in $vcf_needed
 do
+  echo "DOWNLOADING DATA FOR CHROMOSOME $chrom ..."
     download_vcf "$chrom"
+
+  echo "Downloading completed!"
+  ##Filtering
+  echo "Filtering VCF files to keep only the specified positions..."
+  while read -r line; do
+      chrom=$(echo "$line" | awk -F '[:]' '{print $1}')
+      positions=$(echo "$line" | awk -F '[:]' '{print $2}')
+      echo "Processing chromosome: $chrom"
+      echo "Filtering positions: $positions"  
+      bcftools view --regions "${chrom}:${positions}" "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" \ | bgzip -c > "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
+      tabix "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
+      files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
+  done < "$loci_file"
+  echo "REMOVING DATA FOR $chrom FOR MEMORY SANETY..."
+  rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz"
+  rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi"
 done
-echo "Downloading completed!"
-##Filtering
-echo "Filtering VCF files to keep only the specified positions..."
-while read -r line; do
-    chrom=$(echo "$line" | awk -F '[:]' '{print $1}')
-    positions=$(echo "$line" | awk -F '[:]' '{print $2}')
-    echo "Processing chromosome: $chrom"
-    echo "Filtering positions: $positions"  
-    bcftools view --regions "${chrom}:${positions}" "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" \ | bgzip -c > "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
-    tabix "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
-    files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
-done < "$loci_file"
 echo "Filtering completed! Filtered VCFs saved in $VCF_DIR"
 # files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
 
@@ -176,6 +166,7 @@ if  merge_vcf "${files_to_merge[@]}" ; then
         echo "ERROR during merging."
 fi
 
+###ICI ON INTEGRERA LA SELECTION DE POP A LA BOUCLE SI LES DATA SONT TROP GRANDES EGALEMENT
 ###Populations selection
 if [ "$pop_names" != "0" ]; then
     echo "FILTERING POPULATIONS..."
