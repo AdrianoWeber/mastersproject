@@ -7,7 +7,7 @@ command -v bgzip >/dev/null 2>&1 || { echo "bgzip is required but not installed.
 
 ###USAGE
 usage(){
-  echo "This is a function to download data from the 1000Genomes database."
+  echo "This is a function to download data from the 1000Genomes database from the 30xGrChr38."
   echo "Usage: $0 -options <path_to_loci.zip>"
   echo "OPTIONS:"
   echo "-o: Where to write the output file(s)."
@@ -18,18 +18,15 @@ usage(){
 
 ###Initialisation of variables
 OUTPUT_DIR=.
-VCF_DIR="./1000genomes_vcf_files"
+VCF_DIR="./1000genomes_vcf_files" # On pourrait le mettre dans la output dir plutot que wd.
 mkdir -p "$VCF_DIR"
-#base_url="ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502"
-#TEST DE COMMIT
+# exec > >(tee -a $OUTPUT_DIR/fichier_log.log) 2>&1 #Test de si ça marche pour faire un fichier log, commented pour plus de simplicite pour l'instant.
 base_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/20190425_NYGC_GATK"
-#panel_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
 index_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/1000G_2504_high_coverage.sequence.index"
 
 loci_file="0"
 pop_names="0"
 declare -a files_to_merge=()
-# files_to_merge=()
 #Population commented are excluded because they do not live in the continent to which they are assigned.
 declare -A continent_populations
 continent_populations["AFR"]="YRI,LWK,GWD,MSL,ESN" #ACB, ASW
@@ -67,7 +64,7 @@ download_vcf(){
     fi
 }
 
-#Function to merge vcf files
+###Function to merge vcf files
 merge_vcf(){
     declare -a vcf_list=()
     vcf_list=("$@")
@@ -118,7 +115,8 @@ while getopts ":ho:l:p:" opt; do
     esac
 done
 
-if [  "$loci_file" == "0" ]; then
+###Manage if no  loci provided
+if [  "$loci_file" = "0" ]; then
   echo "No loci parameter provided. Downloading all VCF from 1000 genomes...."
   chromosomes=( {1..22} X Y ) # M
    for chrom in "${chromosomes[@]}"
@@ -141,13 +139,15 @@ do
   ##Filtering
   echo "Filtering VCF files to keep only the specified positions..."
   while read -r line; do
-      chrom=$(echo "$line" | awk -F '[:]' '{print $1}')
-      positions=$(echo "$line" | awk -F '[:]' '{print $2}')
-      echo "Processing chromosome: $chrom"
-      echo "Filtering positions: $positions"  
-      bcftools view --regions "${chrom}:${positions}" "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" \ | bgzip -c > "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
-      tabix "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
-      files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
+      if [ "$chrom" = "$(echo "$line" | awk -F '[:]' '{print $1}')" ];then
+        #chrom=$(echo "$line" | awk -F '[:]' '{print $1}')
+        positions=$(echo "$line" | awk -F '[:]' '{print $2}')
+        echo "Processing chromosome: $chrom"
+        echo "Filtering positions: $positions"  
+        bcftools view --regions "chr${chrom}:${positions}" "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz" | bgzip -c > "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
+        tabix "$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz"
+        files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
+        fi
   done < "$loci_file"
   echo "REMOVING DATA FOR $chrom FOR MEMORY SANETY..."
   rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz"
@@ -156,7 +156,7 @@ done
 echo "Filtering completed! Filtered VCFs saved in $VCF_DIR"
 # files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
 
-###Merging all data in 1 vcf
+### Merging all data in 1 vcf
 echo "Files to merge: ${files_to_merge[*]}"
 
 echo "Writing a unique vcf..."
