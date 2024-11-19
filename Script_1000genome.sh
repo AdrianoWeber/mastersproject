@@ -8,12 +8,13 @@ command -v bgzip >/dev/null 2>&1 || { echo "bgzip is required but not installed.
 ###USAGE
 usage(){
   echo "This is a function to download data from the 1000Genomes database from the 30xGrChr38."
+  echo "This version download chromosome's data one at the time and delete it after usage. This is due to the size of data."
   echo "Usage: $0 -options <path_to_loci.zip>"
   echo "OPTIONS:"
   echo "-o: Where to write the output file(s)."
   echo "-l: Direction of the text file containing loci. The loci must be noted as *[chr]:[start_pos]-[end_pos]* with one locus per line"
-  echo "-p: Comma seperated value of populations to extract. The populations accepted are: AFR: For african populations.\nAMR: For american populations.\nEAS: For east-asian populations.\nEUR: For european populations.\nSAS: For south-asian populations.\n"
-  echo "-h: Help of the script."
+  echo -e "-p: Comma seperated value of populations to extract. The populations accepted are:\n- AFR: For african populations.\n- AMR: For american populations.\n- EAS: For east-asian populations.\n- EUR: For european populations.\n- SAS: For south-asian populations.\n"
+  echo "-h: Display this usage manual for the script."
 }
 
 ###Initialisation of variables
@@ -50,8 +51,7 @@ download_vcf(){
       vcf_file="CCDG_13607_B01_GRM_WGS_2019-02-19_chr${chrom}.recalibrated_variants.vcf.gz"
     fi
     if [[ "$chrom" == "M" ]]; then
-      echo "NO MT Data"
-      #vcf_file="ALL.chr${chrom}T.phase3_callmom-v0_4.20130502.genotypes.vcf.gz"
+      echo "NO MT Data so far."
     fi
 
     vcf_url="${base_url}/${vcf_file}"
@@ -71,7 +71,7 @@ merge_vcf(){
     merged_output="$OUTPUT_DIR/1000genomes_data_merged.vcf.gz"
     echo "Merging files..."
     echo "${vcf_list[@]}"
-    bcftools  concat -Da -o "$merged_output" "${vcf_list[@]}" #Usage de concat plutôt que view pour corriger les problèmes "-D" est censé supprimer les doubles.
+    bcftools  concat -Da -o "$merged_output" "${vcf_list[@]}" #-D parameter is used to suppress doubles.
     echo "Merged VCF file created at $merged_output"
 }
 
@@ -134,13 +134,11 @@ for chrom in $vcf_needed
 do
   echo "DOWNLOADING DATA FOR CHROMOSOME $chrom ..."
     download_vcf "$chrom"
-
   echo "Downloading completed!"
   ##Filtering
   echo "Filtering VCF files to keep only the specified positions..."
   while read -r line; do
       if [ "$chrom" = "$(echo "$line" | awk -F '[:]' '{print $1}')" ];then
-        #chrom=$(echo "$line" | awk -F '[:]' '{print $1}')
         positions=$(echo "$line" | awk -F '[:]' '{print $2}')
         echo "Processing chromosome: $chrom"
         echo "Filtering positions: $positions"  
@@ -154,19 +152,18 @@ do
   rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi"
 done
 echo "Filtering completed! Filtered VCFs saved in $VCF_DIR"
-# files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
 
 ### Merging all data in 1 vcf
 echo "Files to merge: ${files_to_merge[*]}"
-
 echo "Writing a unique vcf..."
 if  merge_vcf "${files_to_merge[@]}" ; then
     echo "Success! Merging completed."
     else
         echo "ERROR during merging."
+        exit 1
 fi
 
-###ICI ON INTEGRERA LA SELECTION DE POP A LA BOUCLE SI LES DATA SONT TROP GRANDES EGALEMENT
+##(temporary commentary)##ICI ON INTEGRERA LA SELECTION DE POP A LA BOUCLE SI LES DATA SONT TROP GRANDES EGALEMENT
 ###Populations selection
 if [ "$pop_names" != "0" ]; then
     echo "FILTERING POPULATIONS..."
