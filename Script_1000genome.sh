@@ -9,11 +9,12 @@ command -v bgzip >/dev/null 2>&1 || { echo "bgzip is required but not installed.
 usage(){
   echo "This is a function to download data from the 1000Genomes database from the 30xGrChr38."
   echo "This version download chromosome's data one at the time and delete it after usage. This is due to the size of data."
-  echo "Usage: $0 -options <path_to_loci.zip>"
+  echo "Usage: $0 [--options] <path_to_loci.zip>" #Not quite sure about <path_to_loci.zip>
   echo "OPTIONS:"
   echo "-o: Where to write the output file(s)."
   echo "-l: Direction of the text file containing loci. The loci must be noted as *[chr]:[start_pos]-[end_pos]* with one locus per line"
-  echo -e "-p: Comma seperated value of populations to extract. The populations accepted are:\n- AFR: For african populations.\n- AMR: For american populations.\n- EAS: For east-asian populations.\n- EUR: For european populations.\n- SAS: For south-asian populations.\n"
+  echo -e "-p: Comma seperated value of populations to extract. The populations accepted are:\n\t- AFR: For african populations.\n\t- AMR: For american populations.\n\t- EAS: For east-asian populations.\n\t- EUR: For european populations.\n\t- SAS: For south-asian populations.\n"
+  echo "-k: keep options. If provided then all data from 1KGP are kept."
   echo "-h: Display this usage manual for the script."
 }
 
@@ -28,6 +29,7 @@ index_url="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_250
 loci_file="0"
 pop_names="0"
 declare -a files_to_merge=()
+keep=0
 #Population commented are excluded because they do not live in the continent to which they are assigned.
 declare -A continent_populations
 continent_populations["AFR"]="YRI,LWK,GWD,MSL,ESN" #ACB, ASW
@@ -76,7 +78,7 @@ merge_vcf(){
 }
 
 ###OPTIONS setting
-while getopts ":ho:l:p:" opt; do 
+while getopts ":ho:l:p:k" opt; do 
     case "${opt}" in
           #help flag
       h)
@@ -98,16 +100,27 @@ while getopts ":ho:l:p:" opt; do
         separator=""
         pop_names="${OPTARG}"
         pop_list=$(echo "$pop_names" | tr ',' ' ')
+        echo "DEBBUG: POP_LISTE $pop_list"
         wget -O "index.txt" "$index_url"
         echo "Writing a file without parental relations..."
         awk -F"\t" '!/^##/ {print $10 "\t" $11}' "index.txt" > samples.txt
         for continent in $pop_list; do
-          sample_list+="${separator}$(grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" "samples.txt" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
+          if [[ ! "$continent" =~ ^(AFR|AMR|EAS|EUR|SAS)$ ]]; then
+            echo "$continent is not a valid argument for -p option. See usage with ./Script_1000genome.sh -h."
+            exit 1
+          fi
+          sample_list+="${separator}$(tail -n +2 "samples.txt" | grep -E "$(echo "${continent_populations[${continent}]}" | tr ',' '|')" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')"
           separator=","
         done
         echo "DEBUG SAMPLE LIST: $sample_list"
         ;;
       #if another flag is used, error
+      k)
+        keep=1
+        ;;
+      :) 
+        echo "Option -$OPTARG attend un argument"
+        ;;
       *)
         usage
         exit
@@ -147,9 +160,12 @@ do
         files_to_merge+=("$OUTPUT_DIR/ALL.chr${chrom}.filtered.vcf.gz")
         fi
   done < "$loci_file"
-  echo "REMOVING DATA FOR $chrom FOR MEMORY SANETY..."
-  rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz"
-  rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi"
+  #Option to remove data not enough space
+  if [[ $keep -eq 0 ]]; then
+    echo "REMOVING DATA FOR $chrom FOR MEMORY SANETY..."
+    rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz"
+    rm "$VCF_DIR/datachr${chrom}_1Kgenome.vcf.gz.tbi"
+  fi
 done
 echo "Filtering completed! Filtered VCFs saved in $VCF_DIR"
 
