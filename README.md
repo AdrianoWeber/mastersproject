@@ -1,2 +1,2 @@
 # mastersproject
-Here i keep my scripts related to my master's project at UNIGE.
+This branch is related to the data from 1000Genomes database for the 30xGrChr38 work.
