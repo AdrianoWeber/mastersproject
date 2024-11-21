@@ -127,7 +127,7 @@ while getopts ":hv:o:l:p:k" opt; do
         keep=1
         ;;
       :) 
-        echo "Option -$OPTARG needs an argument"
+        echo "Option -$OPTARG needs an argument."
         exit
         ;;
       *)
