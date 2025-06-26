@@ -6,8 +6,8 @@
 ## The final result is a merged vcf of all samples and loci (you can keep the original data with -k option)
 
 ## This script is part of the master thesis of Adriano Weber at the University of Geneva (09/2024-09/2025).
-# This script is licensed under the GNU General Public License v3.0 or later.
-# See https://www.gnu.org/licenses/gpl-3.0.en.html for more details.
+## This script is licensed under the GNU General Public License v3.0 or later.
+## See https://www.gnu.org/licenses/gpl-3.0.en.html for more details.
 
 ###Check for depedencies
 command -v bcftools >/dev/null 2>&1 || { echo "bcftools is required but not installed. Exiting."; exit 1; }
