@@ -1,11 +1,20 @@
 #!/bin/bash
-###USAGE
+
+## This script rewrite a vcf by adding rsID from a database loaded locally.
+## It is used as: rsID.sh [output_directory] [path_to_database] [-options...].
+## See rsID.sh -h for more detail on usage.
+
+## This script is part of the master thesis of Adriano Weber at the University of Geneva (09/2024-09/2025).
+## This script is licensed under the GNU General Public License v3.0 or later.
+## See https://www.gnu.org/licenses/gpl-3.0.en.html for more details.
+
+#USAGE
 usage(){
   echo "Usage: $0 -options <path_to_file.zip>"
   echo "OPTIONS:"
   echo "-o: Where to write the output file(s)."
   echo "-s: If provided then only the final annotated file will be kept"
-  echo "-d: Where is the database if it's a local use."
+  echo "-d: Where is the database since it's a local use."
   echo "-h: Help of the script."
 }
 
@@ -15,7 +24,13 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-###Initialisation of parameters
+#Check if bcftools is installed
+if ! command -v bcftools &> /dev/null; then
+    echo "bcftools is not installed. Install it to proceed."
+    exit 1
+fi
+
+#Initialisation of directory parameters
 SILENT=0
 
 if [ -z "$OUTPUT_DIR" ]; then
@@ -24,10 +39,9 @@ fi
 
 if [ -z "$DB_DIR" ]; then
     DB_DIR=.
-    #DB_DIR=/mnt/c/Users/adria/Documents/Unige/Masters_project/Data_PacBio/clinvar.vcf.gz
 fi
 
-###OPTIONS setting
+#OPTIONS setting
 while getopts ":ho:sd:" opt; do
     case "${opt}" in
           #help flag
@@ -48,7 +62,6 @@ while getopts ":ho:sd:" opt; do
       d)
         DB_DIR="${OPTARG}"
         ;;
-      #if another flag is used, error
       *)
         usage
         ;;
@@ -58,7 +71,7 @@ done
 shift $((OPTIND - 1)) ##Cette ligne est très sus
 
 ###Setting of variables
-ZIP_FILE="$1"  #Here it register the first parameter as the file to unzip
+ZIP_FILE="$1" 
 if [ ! -f "$ZIP_FILE" ]; then
     echo "Error with $ZIP_FILE no such file."
     usage
@@ -67,12 +80,6 @@ fi
 
 BCF_LIST_FILE="bcf_files.txt"
 tmp_files=()
-
-####Check if bcftools is installed
-if ! command -v bcftools &> /dev/null; then
-    echo "bcftools is not installed. Install it to proceed."
-    exit 1
-fi
 
 ###Opening of the zip file
 echo "Unzipping input file..."
