@@ -1,6 +1,7 @@
 # mastersproject
 This repository is part of my master's project at Univerity of Geneva.
 It contains multiple scripts used during the project.
+If you have any questions, please contact adriano.weber@etu.unige.ch
 
 The main features are:
 
