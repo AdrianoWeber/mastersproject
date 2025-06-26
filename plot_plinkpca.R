@@ -1,7 +1,8 @@
 ## This is a script to plot the output of a Plink pca run.
 ## An info file must also be given to ensure population coloration. The file must be a 3 columns tab (or space) separated values table (Sample ID, Continent, Population) 
 ## Usage: Rscript plot_plinkpca.R [pca_res_dir] [info_pop_dir] [TRUE | FALSE] 
-## The third parameter is set to False and should be "T" if samples should be named on the plot.
+## The third parameter is set to False and should be "T" if a third plot with samples name should be saved.
+## The output plots are saved in the current directory with unique names.
 
 ## This script is part of the master thesis of Adriano Weber at the University of Geneva (09/2024-09/2025).
 ## This script is licensed under the GNU General Public License v3.0 or later.
@@ -30,12 +31,14 @@ samples$Continent <- as.factor(samples$Continent)
 samples$Population <- as.factor(samples$Population)
 merged_data <- merge(pca_dat, samples, by = "IID", all.x = TRUE)
 
+#Computing sum of PCs
+PC.tot <- sum(pc_val$V1)
 #Making nice plots
 lim <- max(abs(c(merged_data$PC1, merged_data$PC2)))+0.02
 p1 <- ggplot(merged_data, aes(x = PC1, y = PC2, colour = Population)) +
   geom_point() +
   geom_text_repel(aes(label = IID), max.overlaps = 100, box.padding = 0.5, point.padding = 0.3) +
-  labs(title = "PCA Plot", x = paste0("PC1 (", pc_val$V1[1], "%)"), y = paste0("PC2 (", pc_val$V1[2], "%)")) +
+  labs(title = "", x = paste0("PC1 (", round((pc_val$V1[1]/PC.tot)*100,1), "%)"), y = paste0("PC2 (", round((pc_val$V1[2]/PC.tot)*100,1), "%)")) +
   theme_minimal() +
   coord_fixed() +
   scale_x_continuous(limits = c(-lim, lim), expand = expansion(mult = 0)) +
@@ -44,7 +47,7 @@ p1 <- ggplot(merged_data, aes(x = PC1, y = PC2, colour = Population)) +
 
 p2 <- ggplot(merged_data, aes(x = PC1, y = PC2, colour = Continent)) +
   geom_point() +
-  labs(title = "PCA Plot", x = paste0("PC1 (", pc_val$V1[1], "%)"), y = paste0("PC2 (", pc_val$V1[2], "%)")) +
+  labs(title = "", x = paste0("PC1 (", round((pc_val$V1[1]/PC.tot)*100,1), "%)"), y = paste0("PC2 (", round((pc_val$V1[2]/PC.tot)*100,1), "%)"), color = "Region or Population") +
   theme_minimal() +
   coord_fixed() +
   scale_x_continuous(limits = c(-lim, lim), expand = expansion(mult = 0)) +
@@ -52,7 +55,7 @@ p2 <- ggplot(merged_data, aes(x = PC1, y = PC2, colour = Continent)) +
   theme(panel.grid.major = element_line(color = "gray", linetype = "dashed"))
 p3 <- ggplot(merged_data, aes(x = PC1, y = PC2, colour = Population)) +
   geom_point() +
-  labs(title = "PCA Plot", x = paste0("PC1 (", pc_val$V1[1], "%)"), y = paste0("PC2 (", pc_val$V1[2], "%)")) +
+  labs(title = "", x = paste0("PC1 (", round((pc_val$V1[1]/PC.tot)*100,1), "%)"), y = paste0("PC2 (", round((pc_val$V1[2]/PC.tot)*100,1), "%)")) +
   theme_minimal() +
   coord_fixed() +
   scale_x_continuous(limits = c(-lim, lim), expand = expansion(mult = 0)) +
